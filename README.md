@@ -12,7 +12,6 @@ The code in this repository implements the algorithms and ideas from our two pap
 * NumPy
 * SciPy
 * Matplotlib
-* Control (requires Slycot)
 
 ## Installing
 Currently there is no package installation procedure; simply download this repository and run the Python files.
