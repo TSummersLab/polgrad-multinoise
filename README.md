@@ -3,8 +3,8 @@
 ## Policy gradient methods for linear systems with multiplicative noise
 
 The code in this repository implements the algorithms and ideas from our two papers:
-* paper1 https://
-* paper2 https://
+* [Learning robust control for LQR systems with multiplicative noise via policy gradient](https://arxiv.org/) TBD
+* [Sparse optimal control of networks with multiplicative noise via policy gradient](https://arxiv.org/) TBD
 
 
 ## Dependencies
@@ -55,7 +55,7 @@ to any figure or numerical result given in the main paper.
 
 4. main_sparse.py
 
-This file reflects the sparse gain design procedures developed in []. Running this script will perform a "sparsity traversal" which iteratively increases the regularization weight in order to find increasingly sparse optimal gains.
+This file reflects the sparse gain design procedures. Running this script will perform a "sparsity traversal" which iteratively increases the regularization weight in order to find increasingly sparse optimal gains.
 
 
 ## General code structure
