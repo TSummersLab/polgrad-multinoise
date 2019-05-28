@@ -7,7 +7,8 @@ The code in this repository implements the algorithms and ideas from our two pap
 * paper2 https://
 
 
-## Prerequisites
+## Dependencies
+* Python 3.5+ (tested with 3.7.3)
 * NumPy
 * SciPy
 * Matplotlib
