@@ -12,13 +12,30 @@ The code in this repository implements the algorithms and ideas from our two pap
 * NumPy
 * SciPy
 * Matplotlib
-* Control (requires Slycot)
 
 ## Installing
-
+Currently there is no package installation procedure; simply download this repository and run the Python files.
 
 ## Examples
-There are several main Python files which can be run. 
+There are several main Python files which can be run.
+
+0. basic_demo
+
+Use this file as a "Hello world" for this repository. The program should perform proximal gradient optimization of a small 3-state, 2-input system with multiplicative noise. The program should run for 1000 iterations then terminate and print two gain matrices. The output should be:
+
+```
+Iteration | Stop quant / threshold |  Curr obj |  Best obj | Norm of gain delta | Stepsize  | Sparsity
+     1000 |  2.405e+00 / 6.000e-02 | 6.004e+00 | 6.004e+00 |          1.609e-06 | 1.000e-03 |  33.33%
+Max iterations exceeded, stopping optimization
+Policy gradient descent optimization completed after 999 iterations, 1.736 seconds
+Optimized sparse gains
+[[-0.08948389 -0.22821676 -0.1576331 ]
+ [ 0.23967029  0.          0.        ]]
+Riccati gains
+[[-0.20997456 -0.32374004 -0.31804207]
+ [ 0.3765947  -0.07048691  0.14067572]]
+ ```
+
 
 1. main_model_known_example_suspension.py
 
