@@ -8,7 +8,6 @@ from ltimult import dlyap_obj, dlyap_mult
 
 from plotting import plot_traj, plot_PGO_results
 from matplotlib import pyplot as plt
-from costsurf import CostSurfaceOptions, plot_cost_surf
 
 from time import time,sleep
 from copy import copy

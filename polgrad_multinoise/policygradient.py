@@ -2,7 +2,7 @@ import numpy as np
 from numpy import linalg as la
 from scipy.special import huber, pseudo_huber
 from matrixmath import solveb,vec,mdot,rngg
-from printing import inplace_print
+from utility import inplace_print
 
 from time import time,sleep
 import warnings
@@ -28,12 +28,9 @@ class PolicyGradientOptions:
                  fbest_repeat_max=0,
                  display_output=True,
                  display_inplace=False,
-                 slow=False):
+                 slow=0.05):
         self.epsilon = epsilon
-        if step_direction=='policy_iteration':
-            self.eta = 0.5
-        else:
-            self.eta = eta
+        self.eta = 0.5 if step_direction=='policy_iteration' else eta
         self.max_iters = max_iters
         self.disp_stride = disp_stride
         self.wait_time = wait_time
@@ -51,7 +48,6 @@ class PolicyGradientOptions:
         self.display_inplace = display_inplace
         self.slow = slow
 
-
 class Regularizer:
     def __init__(self,regstr,mu=0,soft=False,thresh1=0,thresh2=0):
         self.regstr = regstr
@@ -67,7 +63,6 @@ class Regularizer:
         return regularizer_grad(K,self.regstr,self.mu,self.soft,self.thresh1,self.thresh2)
 
 def regularizer_fun(K,regstr,mu=0,thresh1=0,thresh2=0):
-
     # VECTOR NORMS
     if regstr == 'vec1': # Vector 1-norm
         val = np.abs(K).sum()
@@ -238,7 +233,6 @@ def regularizer_grad(K,regstr,mu=0,soft=False,thresh1=0,thresh2=0):
     return grad
 
 
-
 def infnormgrad(x,thresh=0):
     if thresh == 0:
         y = np.zeros_like(x)
@@ -316,12 +310,14 @@ def prox(SS,PGO):
     if PGO.regularizer.regstr == 'vec1':
         Knew = np.maximum(0,Knew-PGO.regweight*PGO.eta)-np.maximum(0,-Knew-PGO.regweight*PGO.eta)
 
-    # Block soft thresholding operator (row-wise) on K, corresponds to actuator selection
+    # Block soft thresholding operator (row-wise) on K,
+    # corresponds to actuator selection
     if PGO.regularizer.regstr == 'glr':
         for i in range(SS.K.shape[0]):
             Knew[i,:] *= np.max(1-PGO.regweight*PGO.eta/la.norm(Knew[i,:],ord=2),0)
 
-    # Block soft thresholding operator (column-wise) on K, corresponds to sensor selection
+    # Block soft thresholding operator (column-wise) on K,
+    # corresponds to sensor selection
     if PGO.regularizer.regstr == 'glc':
         for j in range(SS.K.shape[1]):
             Knew[:,j] *= np.max(1-PGO.regweight*PGO.eta/la.norm(Knew[:,j],ord=2),0)
@@ -333,17 +329,17 @@ def run_policy_gradient(SS,PGO,CSO=None):
     # run_policy_gradient  Run policy gradient descent on a system
     #
     # Inputs:
-    # SS is an LQRSysMult instance
+    # SS is an LQRSysMult instance with an initial gain matrix K
     # PGO is a PolicyGradientOptions instance
     #
-    # K0 is the initial gain matrix
     # K1_subs is the subscripts of the first gain entry varied in surf plot
     # K2_subs is the subscripts of the first gain entry varied in surf plot
     # ax is the axes to plot in
     #
     # Outputs:
     # SS with closed-loop properties at the post-optimization configuration
-    #
+    # histlist, a list of data histories over optimization iterations
+
 
     # TEMPORARY - MOVE INTO CLASS OPTIONS IF KEEPING AROUND
     Kmax = np.max(np.abs(vec(SS.K)))
@@ -355,16 +351,18 @@ def run_policy_gradient(SS,PGO,CSO=None):
     converged = False
     stop_early = False
     iterc = 0
-    t_start = time()
     sleep(0.5)
-    headerstr = 'Iteration | Stop quant / threshold |  Curr obj |  Best obj | Norm of gain delta | Stepsize  | Sparsity'
+    t_start = time()
+
+    headerstr = 'Iteration | Stop quant / threshold |  Curr obj |  Best obj | Norm of gain delta | Stepsize  '
+    if PGO.regularizer is not None:
+        headerstr = headerstr+'| Sparsity'
     print(headerstr)
 
-    K0 = SS.K
-    K = SS.K
-    Kbest = SS.K
+    K = np.copy(SS.K)
+    Kbest = np.copy(SS.K)
     objfun_best = np.inf
-    Kold = K0
+    Kold = np.copy(SS.K)
 
     P = SS.P
     S = SS.S
@@ -376,14 +374,12 @@ def run_policy_gradient(SS,PGO,CSO=None):
         mat_shape = list(K.shape)
         mat_shape.append(PGO.max_iters)
         mat_shape = tuple(mat_shape)
-#        K_hist = np.full(mat_shape, np.inf)
-#        grad_hist = np.full(mat_shape, np.inf)
+        K_hist = np.full(mat_shape, np.inf)
+        grad_hist = np.full(mat_shape, np.inf)
         c_hist = np.full(PGO.max_iters, np.inf)
         objfun_hist = np.full(PGO.max_iters, np.inf)
 
     rng = rngg()
-
-
 
     # Iterate
     while not stop:
@@ -392,12 +388,9 @@ def run_policy_gradient(SS,PGO,CSO=None):
             # Do this to get combined calculation of P and S,
             # pass previous P and S to warm-start dlyap iterative algorithm
             SS.calc_PS(P,S)
-    #        SS.calc_PS(P,S,'linsolve')
             Glqr = SS.grad
             P = SS.P
             S = SS.S
-
-
         else:
             if any([PGO.step_direction=='gradient',
                     PGO.step_direction=='natural_gradient',
@@ -519,22 +512,18 @@ def run_policy_gradient(SS,PGO,CSO=None):
             elif PGO.step_direction=='gauss_newton':
                 V = solveb(la.solve(SS.RK,SS.grad),SS.S)
         else:
-            # Variant 1 - seems more elegant but why should it work?
             if PGO.step_direction=='gradient':
                 V = G
-            elif PGO.step_direction=='natural_gradient':
-                V = solveb(G,SS.S)
-            elif PGO.step_direction=='gauss_newton':
-                V = solveb(la.solve(SS.RK,G),SS.S)
-
-#        # Variant 2 - seems more justifiable
-#            if PGO.step_direction=='gradient':
-#                V = G
+#            # Variant 1 - seems more elegant but why should it work?
+#            elif PGO.step_direction=='natural_gradient':
+#                V = solveb(G,SS.S)
+#            elif PGO.step_direction=='gauss_newton':
+#                V = solveb(la.solve(SS.RK,G),SS.S)
+#            # Variant 2 - seems more justifiable
 #            elif PGO.step_direction=='natural_gradient':
 #                V = solveb(SS.grad,SS.S) + PGO.regweight*PGO.regularizer.rgrad(SS.K)
 #            elif PGO.step_direction=='gauss_newton':
 #                V = solveb(la.solve(SS.RK,SS.grad),SS.S) + PGO.regweight*PGO.regularizer.rgrad(SS.K)
-
 
         # Check if mean-square stable
         if SS.c == np.inf:
@@ -586,7 +575,7 @@ def run_policy_gradient(SS,PGO,CSO=None):
 
         stop = converged or stop_early
 
-        if PGO.display_output:
+        if PGO.display_output and PGO.regularizer is not None:
             Kmax = np.max(np.abs(vec(SS.K)))
             bin1 = 0.05*Kmax
             sparsity = np.sum(np.abs(SS.K)<bin1)/SS.K.size
@@ -652,33 +641,23 @@ def run_policy_gradient(SS,PGO,CSO=None):
             K = prox(SS,PGO)
             SS.setK(K)
 
-
-#            # TESTING - compare soft thresholded Kare w/ prox GN
-#            SSare = copy(SS)
-#            SSare.setK(SSare.Kare)
-#            SSare = prox(SS,PGO)
-#            Ktest = SSare.K
-#
-#            print('\n%.12f' % la.norm(Ktest-K))
-#            print(np.sum(np.abs(Ktest)<bin1)/Ktest.size)
-
-
-
         if hasattr(PGO,'slow'):
-            if PGO.slow:
-                sleep(0.05)
+            if PGO.slow is not None:
+                sleep(PGO.slow)
 
         # Printing
         if PGO.display_output:
             # Print iterate messages
-            printstr0 = "{0:9d}".format(iterc)
+            printstr0 = "{0:9d}".format(iterc+1)
             printstr1 = " {0:5.3e} / {1:5.3e}".format(stop_quant, stop_thresh)
             printstr2a = "{0:5.3e}".format(objfun)
             printstr2b = "{0:5.3e}".format(objfun_best)
             printstr3 = "         {0:5.3e}".format(Kchange)
             printstr4 = "{0:5.3e}".format(eta)
-            printstr5 = "{0:6.2f}%".format(100*sparsity)
-            printstr = printstr0+' | '+printstr1+' | '+printstr2a+' | '+printstr2b+' | '+printstr3+' | '+printstr4+' | '+printstr5
+            printstr = printstr0+' | '+printstr1+' | '+printstr2a+' | '+printstr2b+' | '+printstr3+' | '+printstr4
+            if PGO.regularizer is not None:
+                printstr5 = "{0:6.2f}%".format(100*sparsity)
+                printstr = printstr+' | '+printstr5
             if PGO.display_inplace:
                 if iterc==0:
                     print(" " * len(printstr),end='')
@@ -690,17 +669,16 @@ def run_policy_gradient(SS,PGO,CSO=None):
                 if converged:
                     print('Optimization converged, stopping now')
                 if stop_early:
-                    warnings.simplefilter('always', UserWarning)
-                    warn('Max iterations exceeded, stopping optimization early')
+#                    warnings.simplefilter('always', UserWarning)
+#                    warn('Max iterations exceeded, stopping optimization early')
+                    print('Max iterations exceeded, stopping optimization')
 
     if PGO.keep_hist:
         # Trim empty parts from preallocation
-#        K_hist = K_hist[:,:,0:iterc]
-#        grad_hist = grad_hist[:,:,0:iterc]
-        K_hist = None
-        grad_hist = None
-        c_hist = c_hist[0:iterc]
-        objfun_hist = objfun_hist[0:iterc]
+        K_hist = K_hist[:,:,0:iterc+1]
+        grad_hist = grad_hist[:,:,0:iterc+1]
+        c_hist = c_hist[0:iterc+1]
+        objfun_hist = objfun_hist[0:iterc+1]
     else:
         K_hist = None
         grad_hist = None

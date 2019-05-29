@@ -140,7 +140,7 @@ def run_policy_gradient(SS,PGO,CSO=None):
         # Printing
         if PGO.display_output:
             # Print iterate messages
-            printstr0 = "{0:9d}".format(iterc)
+            printstr0 = "{0:9d}".format(iterc+1)
             printstr1 = " {0:5.3e} / {1:5.3e}".format(stop_quant, stop_thresh)
             printstr2a = "{0:5.3e}".format(objfun)
             printstr2b = "{0:5.3e}".format(objfun_best)

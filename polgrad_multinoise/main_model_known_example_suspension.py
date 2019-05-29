@@ -5,14 +5,13 @@ from matrixmath import randn,vec,mdot,sympart,is_pos_def
 from ltimultgen import gen_system_mult,gen_system_example_suspension
 from policygradient import PolicyGradientOptions
 
-from policygradient_noreg import run_policy_gradient
+from policygradient import run_policy_gradient
 
 
 from ltimult import dlyap_obj, dlyap_mult
 
 from plotting import plot_traj, plot_PGO_results
 from matplotlib import pyplot as plt
-from costsurf import CostSurfaceOptions, plot_cost_surf
 
 from time import time,sleep
 from copy import copy
@@ -270,7 +269,7 @@ def plot_results(SS1,SS2,chist_data,dirname_in):
 
 
 def routine_gen():
-
+#    SS = gen_system_example_suspension()
 
     timestr = '1558459899p686552_example_suspension_model_known'
     folderstr = 'systems_keepers'
@@ -302,19 +301,18 @@ def routine_gen():
     PGO.epsilon = (1e-1)*SS2.Kare.size
     SS2,histlist2 = run_policy_gradient(SS2,PGO)
 
-    SS1.setK(SS2.Kare)
-    SS1.setK(SS2.K)
+#    SS1.setK(SS2.Kare)
+#    SS1.setK(SS2.K)
+#
+#    dirname_in = os.path.join(folderstr,timestr)
 
-
-    dirname_in = os.path.join(folderstr,timestr)
-
-    chist_data = calc_comparison_costs(SS1,SS2,histlist1,histlist2)
-    dirname_out = copy(dirname_in)
-    filename_out = 'chist_data.pickle'
-    path_out = os.path.join(dirname_out,filename_out)
-    pickle_export(dirname_out,path_out,chist_data)
-
-    plot_results(SS1,SS2,chist_data,dirname_in)
+#    chist_data = calc_comparison_costs(SS1,SS2,histlist1,histlist2)
+#    dirname_out = copy(dirname_in)
+#    filename_out = 'chist_data.pickle'
+#    path_out = os.path.join(dirname_out,filename_out)
+#    pickle_export(dirname_out,path_out,chist_data)
+#
+#    plot_results(SS1,SS2,chist_data,dirname_in)
 
 
 def routine_load():
@@ -336,7 +334,5 @@ def routine_load():
 
 ###############################################################################
 if __name__ == "__main__":
-
-#    SS = gen_system_example_suspension()
-
-    routine_load()
+    routine_gen()
+#    routine_load()

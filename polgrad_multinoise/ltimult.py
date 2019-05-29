@@ -439,7 +439,7 @@ def dlyap_obj(obj,matrixtype='P',algo='iterative',show_warn=True,check_pd=False,
     if isinstance(obj,LQRSys) and not isinstance(obj,LQRSysMult):
         if matrixtype=='P':
             AA = obj.AK.T
-            QQ = obj.Q + sympart(la.multi_dot([obj.K.T,obj.R,obj.K]))
+            QQ = obj.Q + sympart(mdot(obj.K.T,obj.R,obj.K))
             P = dlyap(AA,QQ)
             if check_pd:
                 if not is_pos_def(P):
@@ -538,27 +538,29 @@ def dlyap_mult(A,B,K,a,Aa,b,Bb,Q,R,S0,matrixtype='P',algo='iterative',show_warn=
                 P_prev = P
                 APAunc = np.zeros([n,n])
                 for i in range(p):
-                    APAunc += a[i]*la.multi_dot([Aa[:,:,i].T,P,Aa[:,:,i]])
+                    APAunc += a[i]*mdot(Aa[:,:,i].T,P,Aa[:,:,i])
                 BPBunc = np.zeros([n,n])
                 for j in range(q):
-                    BPBunc += b[j]*la.multi_dot([K.T,Bb[:,:,j].T,P,Bb[:,:,j],K])
+                    BPBunc += b[j]*mdot(K.T,Bb[:,:,j].T,P,Bb[:,:,j],K)
                 AAP = AK.T
-                QQP = sympart(Q + la.multi_dot([K.T,R,K]) + APAunc + BPBunc)
+                QQP = sympart(Q + mdot(K.T,R,K) + APAunc + BPBunc)
                 P = dlyap(AAP,QQP)
-                if np.any(np.isnan(P)):
+                if np.any(np.isnan(P)) or not is_pos_def(P):
                     stable = False
                 converged_P = la.norm(P-P_prev,2)/la.norm(P,2) < epsilon_P
             if matrixtype=='S' or matrixtype=='PS':
                 S_prev = S
                 ASAunc = np.zeros([n,n])
                 for i in range(p):
-                    ASAunc += a[i]*la.multi_dot([Aa[:,:,i],S,Aa[:,:,i].T])
+                    ASAunc += a[i]*mdot(Aa[:,:,i],S,Aa[:,:,i].T)
                 BSBunc = np.zeros([n,n])
                 for j in range(q):
-                    BSBunc = b[j]*la.multi_dot([Bb[:,:,j],K,S,K.T,Bb[:,:,j].T])
+                    BSBunc = b[j]*mdot(Bb[:,:,j],K,S,K.T,Bb[:,:,j].T)
                 AAS = AK
                 QQS = sympart(S0 + ASAunc + BSBunc)
                 S = dlyap(AAS,QQS)
+                if np.any(np.isnan(S)) or not is_pos_def(S):
+                    stable = False
                 converged_S = la.norm(S-S_prev,2)/la.norm(S,2) < epsilon_S
             # Check for stopping condition
             if matrixtype=='P':
@@ -652,19 +654,19 @@ def dare_mult(A,B,a,Aa,b,Bb,Q,R,algo='iterative',show_warn=True):
             # Record previous iterate
             P_prev = P
             # Certain part
-            APAcer = la.multi_dot([A.T,P,A])
-            BPBcer = la.multi_dot([B.T,P,B])
+            APAcer = mdot(A.T,P,A)
+            BPBcer = mdot(B.T,P,B)
             # Uncertain part
             APAunc = np.zeros([n,n])
             for i in range(p):
-                APAunc += a[i]*la.multi_dot([Aa[:,:,i].T,P,Aa[:,:,i]])
+                APAunc += a[i]*mdot(Aa[:,:,i].T,P,Aa[:,:,i])
             BPBunc = np.zeros([m,m])
             for j in range(q):
-                BPBunc += b[j]*la.multi_dot([Bb[:,:,j].T,P,Bb[:,:,j]])
+                BPBunc += b[j]*mdot(Bb[:,:,j].T,P,Bb[:,:,j])
             APAsum = APAcer+APAunc
             BPBsum = BPBcer+BPBunc
             # Recurse
-            P = Q + APAsum - la.multi_dot([A.T,P,B,la.solve(R+BPBsum,B.T),P,A])
+            P = Q + APAsum - mdot(A.T,P,B,la.solve(R+BPBsum,B.T),P,A)
             # Check for stopping condition
             if la.norm(P-P_prev,'fro')/la.norm(P,'fro') < epsilon:
                 converged = True
@@ -682,21 +684,21 @@ def dare_mult(A,B,a,Aa,b,Bb,Q,R,algo='iterative',show_warn=True):
             P = None
             K = None
         else:
-            K = -la.multi_dot([la.solve(R+BPBsum,B.T),P,A])
+            K = -mdot(la.solve(R+BPBsum,B.T),P,A)
     return P,K
 
 # Calculate the cost (policy) gradient of an LQR system
 def lqr_gradient(obj):
     # obj is a LQRSys or LQRSysMult instance
     if isinstance(obj,LQRSys) and not isinstance(obj,LQRSysMult):
-        RK = obj.R + la.multi_dot([obj.B.T,obj.P,obj.B])
+        RK = obj.R + mdot(obj.B.T,obj.P,obj.B)
     elif isinstance(obj,LQRSys) and isinstance(obj,LQRSysMult):
         # Uncertain part
         BPBunc = np.zeros([obj.m,obj.m])
         for j in range(obj.q):
-            BPBunc += obj.b[j]*la.multi_dot([obj.Bb[:,:,j].T,obj.P,obj.Bb[:,:,j]])
-        RK = obj.R + la.multi_dot([obj.B.T,obj.P,obj.B]) + BPBunc
-    EK = np.dot(RK,obj.K) + la.multi_dot([obj.B.T,obj.P,obj.A])
+            BPBunc += obj.b[j]*mdot(obj.Bb[:,:,j].T,obj.P,obj.Bb[:,:,j])
+        RK = obj.R + mdot(obj.B.T,obj.P,obj.B) + BPBunc
+    EK = np.dot(RK,obj.K) + mdot(obj.B.T,obj.P,obj.A)
     # Compute gradient
     grad = 2*np.dot(EK,obj.S)
     return grad,RK,EK
@@ -721,16 +723,16 @@ def check_mss_obj(obj):
 #        norm_hist[iterc] = la.norm(S)
         # Recurse
         if isinstance(obj,LQRSys) and not isinstance(obj,LQRSysMult):
-            S = la.multi_dot([obj.AK,S,obj.AK.T])
+            S = mdot(obj.AK,S,obj.AK.T)
         elif isinstance(obj,LQRSys) and isinstance(obj,LQRSysMult):
             # Intermediate expressions
             ASAunc = np.zeros([obj.n,obj.n])
             for i in range(obj.p):
-                ASAunc += obj.a[i]*la.multi_dot([obj.Aa[:,:,i],S,obj.Aa[:,:,i].T])
+                ASAunc += obj.a[i]*mdot(obj.Aa[:,:,i],S,obj.Aa[:,:,i].T)
             BSBunc = np.zeros([obj.n,obj.n])
             for j in range(obj.q):
-                BSBunc += obj.b[j]*la.multi_dot([obj.Bb[:,:,j],obj.K,S,obj.K.T,obj.Bb[:,:,j].T])
-            S = la.multi_dot([obj.AK,S,obj.AK.T]) + ASAunc + BSBunc
+                BSBunc += obj.b[j]*mdot(obj.Bb[:,:,j],obj.K,S,obj.K.T,obj.Bb[:,:,j].T)
+            S = la.mdot(obj.AK,S,obj.AK.T) + ASAunc + BSBunc
         # Check for stopping condition
         if la.norm(S-S_prev,'fro')/S00n < epsilon:
             converged = True

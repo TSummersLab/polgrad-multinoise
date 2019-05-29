@@ -37,7 +37,8 @@ def randint(*args):
 # System generation functions
 ###############################################################################
 def gen_system_mult(n=8,m=8,safety_margin=0.3,noise='weak',
-                    mult_noise_method='random',SStype='ER',seed=None,saveSS=True):
+                    mult_noise_method='random',SStype='ER',
+                    seed=None,saveSS=True):
 
     timestr = str(time()).replace('.','p')
     dirname_out = os.path.join('systems',timestr)

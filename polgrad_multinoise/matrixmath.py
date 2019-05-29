@@ -1,6 +1,7 @@
 import numpy as np
 from numpy import linalg as la
-import control
+from scipy.linalg import solve_discrete_lyapunov,solve_discrete_are
+#import control
 from copy import copy
 from functools import reduce
 
@@ -67,15 +68,14 @@ def rngg():
 def symlog(X,scale=1):
     return np.multiply(np.sign(X),np.log(1+np.abs(X)/(10**scale)))
 
-# Ammend the control package dlyap and dare functions to correct issue where
-# input A, Q matrices are modified (unwanted behavior)
+# Ammend the dlyap and dare functions to correct issue where
+# input A, Q matrices are modified (unwanted behavior);
 # simply pass a copy of the matrices to protect them from modification
 def dlyap(A,Q):
     try:
-        return control.dlyap(copy(A),copy(Q))
+        return solve_discrete_lyapunov(copy(A),copy(Q))
     except ValueError:
         return np.full_like(Q,np.inf)
 
-
 def dare(A,B,Q,R):
-    return control.dare(copy(A),copy(B),copy(Q),copy(R))
+    return solve_discrete_are(copy(A),copy(B),copy(Q),copy(R))
