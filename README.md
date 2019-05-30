@@ -14,12 +14,12 @@ The code in this repository implements the algorithms and ideas from our two pap
 * Matplotlib
 
 ## Installing
-Currently there is no package installation procedure; simply download this repository and run the Python files.
+Currently there is no formal package installation procedure; simply download this repository and run the Python files.
 
 ## Examples
-There are several main Python files which can be run.
+There are several example Python files which can be run.
 
-0. basic_demo
+0. example_basic.py
 
 Use this file as a "Hello world" for this repository. The program should perform proximal gradient optimization of a small 3-state, 2-input system with multiplicative noise. The program should run for 1000 iterations then terminate and print two gain matrices. The output should be:
 
@@ -37,7 +37,7 @@ Riccati gains
  ```
 
 
-1. main_model_known_example_suspension.py
+1. example_suspension_model_known.py
 
 This file reflects the model-known algorithms which calculate gradients
 by solving generalized Lyapunov equations. The standard gradient is used with an
@@ -50,7 +50,7 @@ while running the routine_load() function will attempt to load existing
 experiment result data and generate the plots used in Figure 1 of the main paper.
 
 
-2. main_model_known_example_random.py
+2. example_random_model_known.py
 
 This file reflects the model-known algorithms which calculate gradients
 by solving generalized Lyapunov equations. The standard gradient, natural 
@@ -61,7 +61,7 @@ while running the routine_load() function will attempt to load existing
 experiment result data and generate the plots used in Figure 2 of the main paper.
 
 
-3. main_model_free_example.py
+3. example_model_free.py
 
 This file reflects the model-free algorithm which estimates gradients via 
 zeroth-order optimization. This code is meant to simply give an idea how the 
@@ -70,7 +70,7 @@ gradient to the accuracy limit given in the paper is quite high and might take
 a very long time to run, even for a small system. This code does not correspond
 to any figure or numerical result given in the main paper.
 
-4. main_sparse.py
+4. example_sparse.py
 
 This file reflects the sparse gain design procedures. Running this script will perform a "sparsity traversal" which iteratively increases the regularization weight in order to find increasingly sparse optimal gains.
 
