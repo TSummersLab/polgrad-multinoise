@@ -1,32 +1,20 @@
 import numpy as np
 from numpy import linalg as la
-from matrixmath import randn,vec,mdot,sympart,is_pos_def
+from matrixmath import randn
 
-from ltimultgen import gen_system_mult,gen_system_example_suspension
+from ltimultgen import gen_system_mult
 from policygradient import PolicyGradientOptions, run_policy_gradient
-from ltimult import dlyap_obj, dlyap_mult
+from ltimult import dlyap_obj
 
-from plotting import plot_traj, plot_PGO_results
 from matplotlib import pyplot as plt
 
 from time import time,sleep
-from copy import copy
 
 import os
 from utility import create_directory
 
 from pickle_io import pickle_import,pickle_export
 
-def check_olmss(SS):
-    # Check if open-loop mss
-    K00 = np.zeros([SS.m,SS.n])
-    SS00 = copy(SS)
-    SS00.setK(K00)
-    P = dlyap_obj(SS00,algo='iterative',show_warn=False)
-    if P is None:
-        print('System is NOT open-loop mean-square stable')
-    else:
-        print('System is open-loop mean-square stable')
 
 def set_initial_gains(SS,K0_method):
     # Initial gains
@@ -127,18 +115,14 @@ def plot_data(all_dict,dirname_in):
 
     lw = 3
     fs = 14
-
     markerdict = {'gradient': 'o',
                   'natural_gradient':'v',
                   'gauss_newton':'^'}
-
     ms = 8
-
     pmax = 100
     pmin = 0
 
     quant_list = ['costnorm','gradnorm']
-
     for quant in quant_list:
         plt.figure(figsize=(4.5,2.5))
         plt.yscale('log')
@@ -209,7 +193,7 @@ def routine_gen():
     dirname_in = os.path.join(folderstr,timestr)
     create_directory(dirname_in)
 
-    nSS = 20
+    nSS = 20 # Number of independent runs/systems
 
     all_dict = {'gradient': {'costnorm':[],'gradnorm':[]},
                 'natural_gradient':{'costnorm':[],'gradnorm':[]},
@@ -272,5 +256,5 @@ def routine_load():
 
 ###############################################################################
 if __name__ == "__main__":
-#    routine_gen()
-    routine_load()
+    routine_gen()
+#    routine_load()

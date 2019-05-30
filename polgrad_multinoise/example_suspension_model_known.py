@@ -1,55 +1,18 @@
 import numpy as np
-from numpy import linalg as la
-from matrixmath import randn,vec,mdot,sympart,is_pos_def
+from matrixmath import randn
 
-from ltimultgen import gen_system_mult,gen_system_example_suspension
-from policygradient import PolicyGradientOptions
+from ltimultgen import gen_system_example_suspension
+from policygradient import PolicyGradientOptions,run_policy_gradient
+from ltimult import dlyap_obj,check_olmss
 
-from policygradient import run_policy_gradient
-
-
-from ltimult import dlyap_obj, dlyap_mult
-
-from plotting import plot_traj, plot_PGO_results
 from matplotlib import pyplot as plt
 
-from time import time,sleep
+from time import time
 from copy import copy
 
 import os
 from utility import create_directory
-
 from pickle_io import pickle_import,pickle_export
-
-
-def plot_sample_traj(SS):
-    # Sample plots
-    nt = 20
-    nr = 10
-    Xall_ol = np.zeros([SS.n,nt,nr])
-    Xall_cl = np.zeros([SS.n,nt,nr])
-
-    # Simulate trajectories
-    for i in range(nr):
-        x0 = np.ones(SS.n)
-        Xall_ol[:,:,i] = SS.sim_ol(x0,nt)
-        Xall_cl[:,:,i] = SS.sim_cl(x0,nt)
-
-    # Plot trajectories
-    plot_type='split'
-    plot_traj(Xall_ol,plot_type=plot_type)
-    plot_traj(Xall_cl,plot_type=plot_type)
-
-def check_olmss(SS):
-    # Check if open-loop mss
-    K00 = np.zeros([SS.m,SS.n])
-    SS00 = copy(SS)
-    SS00.setK(K00)
-    P = dlyap_obj(SS00,algo='iterative',show_warn=False)
-    if P is None:
-        print('System is NOT open-loop mean-square stable')
-    else:
-        print('System is open-loop mean-square stable')
 
 
 def set_initial_gains(SS,K0_method):
@@ -103,6 +66,7 @@ def policy_gradient_setup(SS):
 
     # Convergence threshold
     epsilon = (1e+2)*SS.Kare.size # Scale by number of gain entries as rough heuristic
+
     eta = 1e-8
     max_iters = 100000
     stepsize_method = 'constant'
@@ -272,7 +236,7 @@ def routine_gen():
 #    SS = gen_system_example_suspension()
 
     timestr = '1558459899p686552_example_suspension_model_known'
-    folderstr = 'systems_keepers'
+    folderstr = 'example_systems'
     SS1 = load_system(folderstr,timestr)
 
     check_olmss(SS1)
@@ -290,7 +254,6 @@ def routine_gen():
 
     SS1,histlist1 = run_policy_gradient(SS1,PGO)
 
-
     # Find optimal control ignoring noise
     SS2 = copy(SS1)
     SS2.set_a(np.zeros_like(SS2.a))
@@ -301,23 +264,23 @@ def routine_gen():
     PGO.epsilon = (1e-1)*SS2.Kare.size
     SS2,histlist2 = run_policy_gradient(SS2,PGO)
 
-#    SS1.setK(SS2.Kare)
-#    SS1.setK(SS2.K)
-#
-#    dirname_in = os.path.join(folderstr,timestr)
+    SS1.setK(SS2.Kare)
+    SS1.setK(SS2.K)
 
-#    chist_data = calc_comparison_costs(SS1,SS2,histlist1,histlist2)
-#    dirname_out = copy(dirname_in)
-#    filename_out = 'chist_data.pickle'
-#    path_out = os.path.join(dirname_out,filename_out)
-#    pickle_export(dirname_out,path_out,chist_data)
-#
-#    plot_results(SS1,SS2,chist_data,dirname_in)
+    dirname_in = os.path.join(folderstr,timestr)
+
+    chist_data = calc_comparison_costs(SS1,SS2,histlist1,histlist2)
+    dirname_out = copy(dirname_in)
+    filename_out = 'chist_data.pickle'
+    path_out = os.path.join(dirname_out,filename_out)
+    pickle_export(dirname_out,path_out,chist_data)
+
+    plot_results(SS1,SS2,chist_data,dirname_in)
 
 
 def routine_load():
     timestr = '1558459899p686552_example_suspension_model_known'
-    folderstr = 'systems_keepers'
+    folderstr = 'example_systems'
     dirname_in = os.path.join(folderstr,timestr)
 
     SS1 = load_system(folderstr,timestr)
@@ -328,7 +291,6 @@ def routine_load():
     filename_in = os.path.join(dirname_in,'chist_data.pickle')
     chist_data = pickle_import(filename_in)
     plot_results(SS1,SS2,chist_data,dirname_in,)
-
 
 
 

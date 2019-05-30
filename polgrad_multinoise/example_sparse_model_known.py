@@ -1,80 +1,19 @@
 import numpy as np
 from numpy import linalg as la
-from matrixmath import randn,vec,mdot,sympart
+from matrixmath import randn,vec
 
 from ltimultgen import gen_system_mult
 from policygradient import PolicyGradientOptions, run_policy_gradient, Regularizer
-from ltimult import dlyap_obj, dlyap_mult
+from ltimult import dlyap_obj,check_olmss
 
-from plotting import plot_traj, plot_PGO_results
 from matplotlib import pyplot as plt
-from costsurf import CostSurfaceOptions, plot_cost_surf
 
-from time import time,sleep
-from copy import copy
+from time import time
 
 import os
 from utility import create_directory
-
 from pickle_io import pickle_import,pickle_export
 
-
-def plot_sample_traj(SS):
-    # Sample plots
-    nt = 20
-    nr = 10
-    Xall_ol = np.zeros([SS.n,nt,nr])
-    Xall_cl = np.zeros([SS.n,nt,nr])
-
-    # Simulate trajectories
-    for i in range(nr):
-        x0 = np.ones(SS.n)
-        Xall_ol[:,:,i] = SS.sim_ol(x0,nt)
-        Xall_cl[:,:,i] = SS.sim_cl(x0,nt)
-
-    # Plot trajectories
-    plot_type='split'
-    plot_traj(Xall_ol,plot_type=plot_type)
-    plot_traj(Xall_cl,plot_type=plot_type)
-
-
-def mateqn_test(SS):
-    # Matrix equation tests
-    t_start = time()
-    SS.Kare
-    t_end = time()
-    print('Kare calculated by Riccati equation after %.3f seconds' % (t_end-t_start))
-
-    SS.setK(SS.Kare)
-    t_start = time()
-    SS.P
-    t_end = time()
-    print('P calculated by dlyap equation after %.3f seconds' % (t_end-t_start))
-#    print('difference')
-#    print(SS.P-SS.Pare)
-#    print(la.norm(SS.P-SS.Pare))
-    print(SS.mss)
-
-
-
-def dlyapa(A,Q):
-    X=np.copy(Q)
-    Xt=np.copy(Q)
-    while np.abs(Xt).sum() > 1e-15:
-        Xt = mdot(A,Xt,A.T)
-        X += Xt
-    return X
-
-def check_olmss(SS):
-    # Check if open-loop mss
-    K00 = np.zeros([SS.m,SS.n])
-    SS00 = copy(SS)
-    SS00.setK(K00)
-    P = dlyap_obj(SS00,algo='iterative',show_warn=False)
-    if P is None:
-        print('System is NOT open-loop mean-square stable')
-    else:
-        print('System is open-loop mean-square stable')
 
 def calc_sparsity(K,thresh,PGO):
     if PGO is None:
@@ -466,7 +405,7 @@ def traverse_sparsity(SS,PGO,optiongroup,optiongroup_dir):
 
 def load_system(timestr):
     # Import
-    dirname_in = os.path.join('systems_keepers',timestr)
+    dirname_in = os.path.join('example_systems',timestr)
     filename_only = 'system_init.pickle'
     SS = pickle_import(os.path.join(dirname_in,filename_only))
     #Export
@@ -481,9 +420,6 @@ def load_system(timestr):
 
 ###############################################################################
 if __name__ == "__main__":
-
-
-    # dlyap is ~O(n^3) so doubling the # of states will lead to ~10X increase in compute time
     SS = gen_system_mult(n=20,m=20,safety_margin=0.3,noise='olmsus',
                          mult_noise_method='random',SStype='random')
 
@@ -493,12 +429,11 @@ if __name__ == "__main__":
 
     check_olmss(SS)
 
-#    optiongroup_list = ['gradient','subgradient','proximal_gradient']
+    optiongroup_list = ['gradient','subgradient','proximal_gradient']
 
 #    optiongroup_list = ['gradient']
 #    optiongroup_list = ['subgradient']
-    optiongroup_list = ['proximal_gradient']
-#    optiongroup_list = ['proximal_gradient_GN']
+#    optiongroup_list = ['proximal_gradient']
 
     for optiongroup in optiongroup_list:
         optiongroup_dir = os.path.join(SS.dirname,optiongroup)

@@ -4,6 +4,7 @@ from matrixmath import is_pos_def,vec,sympart,kron,randn,dlyap,dare,mdot
 
 import warnings
 from warnings import warn
+from copy import copy
 
 ###############################################################################
 # Developer notes
@@ -703,6 +704,7 @@ def lqr_gradient(obj):
     grad = 2*np.dot(EK,obj.S)
     return grad,RK,EK
 
+# Check is system is closed-loop mean-square stable
 def check_mss_obj(obj):
     # Options
     max_iters = 1000
@@ -743,6 +745,41 @@ def check_mss_obj(obj):
         stop = converged or stop_early
 #    norm_hist = norm_hist[0:iterc]
     return converged
+
+# Check if system is open-loop mean-square stable
+def check_olmss(obj):
+    # Check if open-loop mss
+    K00 = np.zeros([obj.m,obj.n])
+    SS00 = copy(obj)
+    SS00.setK(K00)
+    P = dlyap_obj(SS00,algo='iterative',show_warn=False)
+    if P is None:
+        print('System is NOT open-loop mean-square stable')
+        olmss = False
+    else:
+        print('System is open-loop mean-square stable')
+        olmss = True
+    return olmss
+
+
+def mateqn_test(obj):
+    from time import time
+    # Matrix equation tests
+    t_start = time()
+    obj.Kare
+    t_end = time()
+    print('Kare calculated by Riccati equation after %.3f seconds' % (t_end-t_start))
+
+    obj.setK(obj.Kare)
+    t_start = time()
+    obj.P
+    t_end = time()
+    print('P calculated by dlyap equation after %.3f seconds' % (t_end-t_start))
+#    print('difference')
+#    print(obj.P-obj.Pare)
+#    print(la.norm(obj.P-obj.Pare))
+    print(obj.mss)
+
 
 
 ###############################################################################

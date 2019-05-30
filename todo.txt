@@ -1,0 +1,9 @@
+Polgrad-multinoise todo
+
+1. Eliminate check_olmss function
+* Make logic consistent with check_mss_obj which does the same thing except in closed-loop
+* Eliminate altogether by just setting obj K to zero and running check_mss_obj
+
+2. Put set_initial_gains into a function and call, instead of having redefinition in each example.py file
+
+3. Make model-free parameters (number of rollouts, rollout length, exploration radius) PGO object attributes

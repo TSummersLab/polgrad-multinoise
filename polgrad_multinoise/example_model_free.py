@@ -1,32 +1,15 @@
 import numpy as np
-from numpy import linalg as la
-from matrixmath import randn,vec,mdot,sympart
+from matrixmath import randn
 
 from ltimultgen import gen_system_mult
-from policygradient import PolicyGradientOptions, run_policy_gradient, Regularizer
-from ltimult import dlyap_obj, dlyap_mult
+from policygradient import PolicyGradientOptions, run_policy_gradient
+from ltimult import dlyap_obj
 
-from plotting import plot_traj, plot_PGO_results
 from matplotlib import pyplot as plt
 
-from time import time,sleep
-from copy import copy
-
+from time import time
 import os
-from utility import create_directory
-
 from pickle_io import pickle_import,pickle_export
-
-def check_olmss(SS):
-    # Check if open-loop mss
-    K00 = np.zeros([SS.m,SS.n])
-    SS00 = copy(SS)
-    SS00.setK(K00)
-    P = dlyap_obj(SS00,algo='iterative',show_warn=False)
-    if P is None:
-        print('System is NOT open-loop mean-square stable')
-    else:
-        print('System is open-loop mean-square stable')
 
 
 def set_initial_gains(SS,K0_method):
@@ -82,10 +65,11 @@ def policy_gradient_setup(SS):
     # Gradient descent options
 
     # Convergence threshold
-    epsilon = (1e-2)*SS.Kare.size # Scale by number of gain entries as rough heuristic
+    # Scale by number of gain entries as rough heuristic
+    # Set low to force max number of iterations
+    epsilon = (1e-6)*SS.Kare.size
     eta = 1e-2
-    regweight = 1.0
-    max_iters = 10000
+    max_iters = 200
     stepsize_method = 'constant'
     step_direction = 'gradient'
 
@@ -100,14 +84,13 @@ def policy_gradient_setup(SS):
                                 stepsize_method=stepsize_method,
                                 exact=False,
                                 regularizer=None,
-                                regweight=regweight,
+                                regweight=0,
                                 stop_crit='gradient',
                                 fbest_repeat_max=0,
                                 display_output=True,
                                 display_inplace=True,
                                 slow=False)
     return PGO
-
 
 
 def load_system(folderstr,timestr):
@@ -134,7 +117,6 @@ if __name__ == "__main__":
                          noise='olmss_weak',
                          mult_noise_method='random',
                          SStype='random')
-
 
     # Policy gradient setup
     t_start = time()

@@ -402,7 +402,7 @@ def run_policy_gradient(SS,PGO,CSO=None):
                 nt = 20
 
                 # Number of rollouts
-                nr = 1000000
+                nr = 100000
 
                 # Exploration radius
                 ru = 1e-1
@@ -536,8 +536,8 @@ def run_policy_gradient(SS,PGO,CSO=None):
 
         # Record current iterate
         if PGO.keep_hist:
-#            K_hist[:,:,iterc] = SS.K
-#            grad_hist[:,:,iterc] = SS.grad
+            K_hist[:,:,iterc] = SS.K
+            grad_hist[:,:,iterc] = SS.grad
             c_hist[iterc] = SS.c
             objfun_hist[iterc] = objfun
 

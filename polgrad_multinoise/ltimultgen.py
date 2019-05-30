@@ -3,6 +3,8 @@ from numpy import linalg as la
 from ltimult import LQRSysMult,dare_mult,dlyap_mult
 import scipy
 
+import random
+
 from matplotlib import pyplot as plt
 from matplotlib import patches
 from matplotlib.patheffects import withStroke
@@ -19,7 +21,7 @@ rng = np.random.RandomState(seed)
 
 def set_rng_seed(seed=-1):
     if seed < 0:
-        seed = int(1e4*(time()-1558500000))
+        seed = random.randint(0,2**32-1)
     global rng
     rng = np.random.RandomState(seed)
 
