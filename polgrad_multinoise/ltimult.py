@@ -629,8 +629,10 @@ def dlyap_mult(A,B,K,a,Aa,b,Bb,Q,R,S0,matrixtype='P',algo='iterative',show_warn=
 
 def dare_obj(obj):
     if isinstance(obj,LQRSys) and not isinstance(obj,LQRSysMult):
-        Pare,Gare,Kare = dare(obj.A,obj.B,obj.Q,obj.R)
-        return Pare,-Kare
+        Pare = dare(obj.A,obj.B,obj.Q,obj.R)
+        Kare = -la.solve((obj.R+mdot(obj.B.T,Pare,obj.B)),
+                         mdot(obj.B.T,Pare,obj.A))
+        return Pare,Kare
     elif isinstance(obj,LQRSys) and isinstance(obj,LQRSysMult):
         return dare_mult(obj.A,obj.B,obj.a,obj.Aa,obj.b,obj.Bb,obj.Q,obj.R)
 
