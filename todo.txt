@@ -7,3 +7,5 @@ Polgrad-multinoise todo
 2. Put set_initial_gains into a function and call, instead of having redefinition in each example.py file
 
 3. Make model-free parameters (number of rollouts, rollout length, exploration radius) PGO object attributes
+
+4. Put example.py files in a separate folder 
