@@ -736,7 +736,7 @@ def check_mss_obj(obj):
             BSBunc = np.zeros([obj.n,obj.n])
             for j in range(obj.q):
                 BSBunc += obj.b[j]*mdot(obj.Bb[:,:,j],obj.K,S,obj.K.T,obj.Bb[:,:,j].T)
-            S = la.mdot(obj.AK,S,obj.AK.T) + ASAunc + BSBunc
+            S = mdot(obj.AK,S,obj.AK.T) + ASAunc + BSBunc
         # Check for stopping condition
         if la.norm(S-S_prev,'fro')/S00n < epsilon:
             converged = True
