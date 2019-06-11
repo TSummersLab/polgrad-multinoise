@@ -1,8 +1,6 @@
 import numpy as np
 from numpy import linalg as la
 from scipy.linalg import solve_discrete_lyapunov,solve_discrete_are
-#import control
-from copy import copy
 from functools import reduce
 
 ###############################################################################
@@ -73,9 +71,9 @@ def symlog(X,scale=1):
 # simply pass a copy of the matrices to protect them from modification
 def dlyap(A,Q):
     try:
-        return solve_discrete_lyapunov(copy(A),copy(Q))
+        return solve_discrete_lyapunov(np.copy(A),np.copy(Q))
     except ValueError:
         return np.full_like(Q,np.inf)
 
 def dare(A,B,Q,R):
-    return solve_discrete_are(copy(A),copy(B),copy(Q),copy(R))
+    return solve_discrete_are(np.copy(A),np.copy(B),np.copy(Q),np.copy(R))
