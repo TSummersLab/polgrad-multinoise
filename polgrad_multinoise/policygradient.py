@@ -426,9 +426,9 @@ def run_policy_gradient(SS,PGO,CSO=None):
                     # Calculate noisy closed-loop dynamics
                     AKr = SS.A + np.einsum('...ik,...kj',SS.B,Kd)
                     for i in range(SS.p):
-                        AKr += SS.a[i]*rng.randn(nr)[:,np.newaxis,np.newaxis]*np.repeat(SS.Aa[np.newaxis,:,:,i], nr, axis=0)
+                        AKr += (SS.a[i]**0.5)*rng.randn(nr)[:,np.newaxis,np.newaxis]*np.repeat(SS.Aa[np.newaxis,:,:,i], nr, axis=0)
                     for j in range(SS.q):
-                        AKr += np.einsum('...ik,...kj',SS.b[j]*rng.randn(nr)[:,np.newaxis,np.newaxis]*np.repeat(SS.Bb[np.newaxis,:,:,j], nr, axis=0),Kd)
+                        AKr += np.einsum('...ik,...kj',(SS.b[j]**0.5)*rng.randn(nr)[:,np.newaxis,np.newaxis]*np.repeat(SS.Bb[np.newaxis,:,:,j], nr, axis=0),Kd)
 
                     # Transition the state
                     x = np.einsum('...jk,...k', AKr, x)

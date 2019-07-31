@@ -31,18 +31,24 @@ def kron(*args):
         return np.kron(*args)
 
 ## Multi-dot
-#def mdot(*args):
-#    return la.multi_dot(args)
-
 def mdot(*args):
     return reduce(np.dot, args)
 
+# Spectral radius of a matrix
+def specrad(A):
+    try:
+        return np.max(np.abs(la.eig(A)[0]))
+    except np.linalg.LinAlgError:
+        return np.nan
+
+# Minimum singular value
+def minsv(A):
+    return la.svd(A)[1].min()
 
 # Similar to MATLAB / operator for square invertible matrices
 # Solves a = bx
 def solveb(a,b):
     return la.solve(b.T,a.T).T
-
 
 # Overload the numpy randn function so it always uses the same RandomState
 # similarly to how MATLAB works (random number generator is 'global')
@@ -60,7 +66,6 @@ def randint(*args):
 
 def rngg():
     return rng
-
 
 # Symmetric log transform
 def symlog(X,scale=1):

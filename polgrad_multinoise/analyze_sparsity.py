@@ -17,7 +17,6 @@ import os
 from utility import create_directory
 
 from pickle_io import pickle_import,pickle_export
-import dill
 
 
 def plot_sparsity_data(SS0,sparsity_data,dirname_in,fig_list=[],ax_list=[]):

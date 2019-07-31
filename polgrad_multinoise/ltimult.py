@@ -358,13 +358,13 @@ class LTISysMult(LTISys):
     def sample_Arand(self):
         self._Arand = np.copy(self.A)
         for i in range(self.p):
-            self._Arand += randn()*self.a[i]*self.Aa[:,:,i]
+            self._Arand += (self.a[i]**0.5)*randn()*self.Aa[:,:,i]
         return self._Arand
 
     def sample_Brand(self):
         self._Brand = np.copy(self.B)
         for j in range(self.q):
-            self._Brand += randn()*self.b[j]*self.Bb[:,:,j]
+            self._Brand += (self.b[j]**0.5)*randn()*self.Bb[:,:,j]
         return self._Brand
 
     def sample_AKrand(self):
@@ -435,7 +435,7 @@ def sim_traj_obj(obj,x0,nt,feedback=False):
                 X[:,i+1] = np.dot(obj.AKrand,X[:,i])
     return X
 
-def dlyap_obj(obj,matrixtype='P',algo='iterative',show_warn=True,check_pd=False,P00=None,S00=None):
+def dlyap_obj(obj,matrixtype='P',algo='iterative',show_warn=False,check_pd=False,P00=None,S00=None):
     # obj is a LQRSys or LQRSysMult instance
     if isinstance(obj,LQRSys) and not isinstance(obj,LQRSysMult):
         if matrixtype=='P':
@@ -466,7 +466,7 @@ def dlyap_obj(obj,matrixtype='P',algo='iterative',show_warn=True,check_pd=False,
                           obj.Bb,obj.Q,obj.R,obj.S0,matrixtype=matrixtype,
                           algo=algo,show_warn=show_warn,check_pd=check_pd,
                           P00=P00,S00=S00)
-def dlyap_mult(A,B,K,a,Aa,b,Bb,Q,R,S0,matrixtype='P',algo='iterative',show_warn=True,check_pd=False,P00=None,S00=None):
+def dlyap_mult(A,B,K,a,Aa,b,Bb,Q,R,S0,matrixtype='P',algo='iterative',show_warn=False,check_pd=False,P00=None,S00=None):
     n = A.shape[1]
     n2 = n*n
     p = len(a)
@@ -636,7 +636,7 @@ def dare_obj(obj):
     elif isinstance(obj,LQRSys) and isinstance(obj,LQRSysMult):
         return dare_mult(obj.A,obj.B,obj.a,obj.Aa,obj.b,obj.Bb,obj.Q,obj.R)
 
-def dare_mult(A,B,a,Aa,b,Bb,Q,R,algo='iterative',show_warn=True):
+def dare_mult(A,B,a,Aa,b,Bb,Q,R,algo='iterative',show_warn=False):
     if algo=='iterative':
         # Options
         max_iters = 1000
