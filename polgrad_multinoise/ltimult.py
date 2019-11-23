@@ -603,7 +603,7 @@ def dlyap_mult(A,B,K,a,Aa,b,Bb,Q,R,S0,matrixtype='P',algo='iterative',show_warn=
                 BSBunc = np.zeros([n,n])
                 for j in range(q):
                     BSBunc = b[j]*mdot(Bb[:,:,j],K,St,K.T,Bb[:,:,j].T)
-                St = mdot(AK,Pt,AK.T)+APAunc+BPBunc
+                St = mdot(AK,Pt,AK.T)+ASAunc+BSBunc
                 S += St
                 converged_S = np.abs(St).sum() < 1e-15
                 stable = np.abs(S).sum() < 1e10
