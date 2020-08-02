@@ -473,6 +473,7 @@ def dlyap_mult(A,B,K,a,Aa,b,Bb,Q,R,S0,matrixtype='P',algo='iterative',show_warn=
     q = len(b)
     AK = A + np.dot(B,K)
     stable = True
+    stable2 = True
     if algo=='linsolve':
         if matrixtype=='P':
             # Intermediate terms
@@ -511,6 +512,7 @@ def dlyap_mult(A,B,K,a,Aa,b,Bb,Q,R,S0,matrixtype='P',algo='iterative',show_warn=
         elif matrixtype=='PS':
             P = dlyap_mult(A,B,K,a,Aa,b,Bb,Q,R,S0,matrixtype='P',algo='linsolve')
             S = dlyap_mult(A,B,K,a,Aa,b,Bb,Q,R,S0,matrixtype='S',algo='linsolve')
+
     elif algo=='iterative':
         # Implicit iterative solution to generalized discrete Lyapunov equation
         # Inspired by https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=7553367
@@ -523,12 +525,12 @@ def dlyap_mult(A,B,K,a,Aa,b,Bb,Q,R,S0,matrixtype='P',algo='iterative',show_warn=
         # Initialize
         if matrixtype=='P' or matrixtype=='PS':
             if P00 is None:
-                P = np.zeros([n,n])
+                P = np.copy(Q)
             else:
                 P = P00
         if matrixtype=='S' or matrixtype=='PS':
             if S00 is None:
-                S = np.zeros([n,n])
+                S = np.copy(S0)
             else:
                 S = S00
         iterc = 0
@@ -546,9 +548,18 @@ def dlyap_mult(A,B,K,a,Aa,b,Bb,Q,R,S0,matrixtype='P',algo='iterative',show_warn=
                 AAP = AK.T
                 QQP = sympart(Q + mdot(K.T,R,K) + APAunc + BPBunc)
                 P = dlyap(AAP,QQP)
-                if np.any(np.isnan(P)) or not is_pos_def(P):
+                if np.any(np.isnan(P)) or np.any(np.isinf(P)) or not is_pos_def(P):
                     stable = False
-                converged_P = la.norm(P-P_prev,2)/la.norm(P,2) < epsilon_P
+                try:
+                    converged_P = la.norm(P-P_prev,2)/la.norm(P_prev,2) < epsilon_P
+                    stable2 = True
+                except:
+                    # print(P)
+                    # print(P_prev)
+                    # print(P-P_prev)
+                    # print(la.norm())
+                    stable2 = False
+                    # print('')
             if matrixtype=='S' or matrixtype=='PS':
                 S_prev = S
                 ASAunc = np.zeros([n,n])
@@ -574,7 +585,7 @@ def dlyap_mult(A,B,K,a,Aa,b,Bb,Q,R,S0,matrixtype='P',algo='iterative',show_warn=
                 stable = False
             else:
                 iterc += 1
-            stop = converged or not stable
+            stop = converged or not stable or not stable2
 #        print('\ndlyap iters = %s' % str(iterc))
 
     elif algo=='finite_horizon':
@@ -690,24 +701,30 @@ def dare_mult(A,B,a,Aa,b,Bb,Q,R,algo='iterative',show_warn=False):
             K = -mdot(la.solve(R+BPBsum,B.T),P,A)
     return P,K
 
-# Calculate the cost (policy) gradient of an LQR system
+
 def lqr_gradient(obj):
+    """Calculate the cost (policy) gradient of an LQR system"""
     # obj is a LQRSys or LQRSysMult instance
-    if isinstance(obj,LQRSys) and not isinstance(obj,LQRSysMult):
+
+    if obj.P is None:
+        raise Exception('Attempted to compute gradient of system with undefined cost P matrix!')
+
+    if isinstance(obj, LQRSys) and not isinstance(obj, LQRSysMult):
         RK = obj.R + mdot(obj.B.T,obj.P,obj.B)
-    elif isinstance(obj,LQRSys) and isinstance(obj,LQRSysMult):
+    elif isinstance(obj, LQRSys) and isinstance(obj, LQRSysMult):
         # Uncertain part
         BPBunc = np.zeros([obj.m,obj.m])
         for j in range(obj.q):
-            BPBunc += obj.b[j]*mdot(obj.Bb[:,:,j].T,obj.P,obj.Bb[:,:,j])
-        RK = obj.R + mdot(obj.B.T,obj.P,obj.B) + BPBunc
+            BPBunc += obj.b[j]*mdot(obj.Bb[:,:,j].T, obj.P, obj.Bb[:,:,j])
+        RK = obj.R + mdot(obj.B.T, obj.P, obj.B) + BPBunc
     EK = np.dot(RK,obj.K) + mdot(obj.B.T,obj.P,obj.A)
     # Compute gradient
     grad = 2*np.dot(EK,obj.S)
-    return grad,RK,EK
+    return grad, RK, EK
 
-# Check is system is closed-loop mean-square stable
+
 def check_mss_obj(obj):
+    """Check whether or not system is closed-loop mean-square stable"""
     # Options
     max_iters = 1000
     epsilon = 1e-6
@@ -748,8 +765,9 @@ def check_mss_obj(obj):
 #    norm_hist = norm_hist[0:iterc]
     return converged
 
-# Check if system is open-loop mean-square stable
+
 def check_olmss(obj):
+    """"Check whether or not system is open-loop mean-square stable"""
     # Check if open-loop mss
     K00 = np.zeros([obj.m,obj.n])
     SS00 = copy(obj)

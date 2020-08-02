@@ -1,6 +1,7 @@
 import numpy as np
 from numpy import linalg as la
-from ltimult import LQRSysMult,dare_mult,dlyap_mult
+from numpy import random as npr
+from ltimult import LQRSysMult, dare_mult, dlyap_mult
 import scipy
 
 import random
@@ -38,9 +39,9 @@ def randint(*args):
 ###############################################################################
 # System generation functions
 ###############################################################################
-def gen_system_mult(n=8,m=8,safety_margin=0.3,noise='weak',
-                    mult_noise_method='random',SStype='ER',
-                    seed=None,saveSS=True):
+def gen_system_mult(n=8, m=8, safety_margin=0.3, noise='weak',
+                    mult_noise_method='random', SStype='ER',
+                    seed=None, saveSS=True):
 
     timestr = str(time()).replace('.','p')
     dirname_out = os.path.join('systems',timestr)
@@ -376,10 +377,85 @@ def gen_system_example_suspension():
     return SS
 
 
+def gen_system_erdos_renyi(n, diffusion_constant=1.0, leakiness_constant=0.1, time_constant=0.05,
+                               leaky=True, seed=None, detailed_outputs=False, dirname_out='.'):
+    npr.seed(seed)
+    timestr = str(time()).replace('.','p')
+    dirname_out = os.path.join('systems', timestr)
+
+    # ER probability
+    # crp = 7.0
+    # erp = (np.log(n+1)+crp)/(n+1)  # almost surely connected prob=0.999
+
+    mean_degree = 4.0 # should be > 1 for giant component to exist
+    erp = mean_degree/(n-1.0)
+
+    n_edges = 0
+    # Create random Erdos-Renyi graph
+    # Adjacency matrix
+    adjacency = np.zeros([n, n])
+    for i in range(n):
+        for j in range(i+1, n):
+            if npr.rand() < erp:
+                n_edges += 1
+                adjacency[i, j] = npr.randint(low=1, high=4)
+                adjacency[j, i] = np.copy(adjacency[i, j])
+
+    # Degree matrix
+    degree = np.diag(adjacency.sum(axis=0))
+    # Graph Laplacian
+    laplacian = degree-adjacency
+    # Continuous-time dynamics matrices
+    Ac = -laplacian*diffusion_constant
+    Bc = np.eye(n)/time_constant # normalize just to make B = np.eye(n) later in discrete-time
+
+    if leaky:
+        Fc = leakiness_constant*np.eye(n)
+        Ac = Ac - Fc
+
+    # Plot
+    visualize_graph_ring(adjacency, n, dirname_out)
+
+    # Forward Euler discretization
+    A = np.eye(n) + Ac*time_constant
+    B = Bc*time_constant
+    n = np.copy(n)
+    m = np.copy(n)
+
+    # Multiplicative noises
+    a = 0.005*npr.randint(low=1, high=5, size=n_edges)*np.ones(n_edges)
+    Aa = np.zeros([n, n, n_edges])
+    k = 0
+    for i in range(n):
+        for j in range(i+1, n):
+            if adjacency[i, j] > 0:
+                Aa[i, i, k] = 1
+                Aa[j, j, k] = 1
+                Aa[i, j, k] = -1
+                Aa[j, i, k] = -1
+                k += 1
+
+    b = 0.05*npr.randint(low=1, high=5, size=n)*np.ones(n)
+    Bb = np.zeros([n, m, m])
+    for i in range(n):
+        Bb[i, i, i] = 1
+
+    Q = np.eye(n)
+    R = np.eye(m)
+    S0 = np.eye(n)
+
+    SS = LQRSysMult(A, B, a, Aa, b, Bb, Q, R, S0)
+    SS.dirname = dirname_out
+    filename_only = 'system_init.pickle'
+    filename_out = os.path.join(dirname_out, filename_only)
+    pickle_export(dirname_out, filename_out, SS)
+    return SS
 
 
 if __name__ == "__main__":
 #    SS = gen_system_mult()
 
-    SS = gen_system_mult(n=50,m=8,safety_margin=0.3,noise='olmsus',
-                    mult_noise_method='random',SStype='ER')
+    # SS = gen_system_mult(n=50,m=8,safety_margin=0.3,noise='olmsus',
+    #                 mult_noise_method='random',SStype='ER')
+
+    SS = gen_system_erdos_renyi(n=4, seed=1)

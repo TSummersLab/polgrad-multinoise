@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import linalg as la
 from scipy.special import huber, pseudo_huber
-from matrixmath import solveb,vec,mdot,rngg
+from matrixmath import solveb, vec, mdot, rngg
 from utility import inplace_print
 
 from time import time,sleep
@@ -28,7 +28,11 @@ class PolicyGradientOptions:
                  fbest_repeat_max=0,
                  display_output=True,
                  display_inplace=False,
-                 slow=0.05):
+                 slow=0.05,
+                 nt=None, # Rollout length
+                 nr=None, # Number of rollouts
+                 ru=None  # Exploration radius
+                 ):
         self.epsilon = epsilon
         self.eta = 0.5 if step_direction=='policy_iteration' else eta
         self.max_iters = max_iters
@@ -47,22 +51,26 @@ class PolicyGradientOptions:
         self.display_output = display_output
         self.display_inplace = display_inplace
         self.slow = slow
+        self.nt = nt
+        self.nr = nr
+        self.ru = ru
+
 
 class Regularizer:
-    def __init__(self,regstr,mu=0,soft=False,thresh1=0,thresh2=0):
+    def __init__(self, regstr, mu=0, soft=False, thresh1=0, thresh2=0):
         self.regstr = regstr
         self.mu = mu
         self.soft = soft
         self.thresh1 = thresh1
         self.thresh2 = thresh2
 
-    def rfun(self,K):
+    def rfun(self, K):
         return regularizer_fun(K,self.regstr,self.mu,self.thresh1,self.thresh2)
 
-    def rgrad(self,K):
+    def rgrad(self, K):
         return regularizer_grad(K,self.regstr,self.mu,self.soft,self.thresh1,self.thresh2)
 
-def regularizer_fun(K,regstr,mu=0,thresh1=0,thresh2=0):
+def regularizer_fun(K, regstr, mu=0, thresh1=0, thresh2=0):
     # VECTOR NORMS
     if regstr == 'vec1': # Vector 1-norm
         val = np.abs(K).sum()
@@ -121,8 +129,6 @@ def regularizer_fun(K,regstr,mu=0,thresh1=0,thresh2=0):
         for j in range(K.shape[1]):
             val += p_huber_norm(K[:,j],p=2,thresh=thresh2)
     return val
-
-
 
 
 def regularizer_grad(K,regstr,mu=0,soft=False,thresh1=0,thresh2=0):
@@ -278,7 +284,6 @@ def softsignscalar(x,thresh=0):
         raise Exception('Threshold for soft norm must be set nonnegative!')
     return y
 
-
 def p_huber_norm(x,p,thresh=0):
     a = la.norm(x,p)
     if a > thresh:
@@ -287,23 +292,41 @@ def p_huber_norm(x,p,thresh=0):
         return (0.5/thresh)*np.square(a)
 
 
-def backtrack(SS,w,REG,G,V,alpha=0.2,beta=0.3,eta0=1):
+def backtrack(SS, w, REG, G, V, alpha=0.01, beta=0.5, eta0=1, PGO=None, rng=None):
+    """Backtracking line search"""
+
+    def cost(K):
+        if PGO.exact:
+            SStemp = copy(SS)
+            SStemp.setK(K)
+            cost_base = SStemp.c
+        else:
+            cost_base = estimate_cost(K, SS, PGO, rng)
+
+        # TESTING TODO remove
+        # SStemp = copy(SS)
+        # SStemp.setK(K)
+        # cost_base = SStemp.c
+
+
+        cost_reg = w*REG.rfun(K0) if REG is not None else 0
+        return cost_base + cost_reg
+
     eta = eta0 # Stepsize
     K0 = SS.K
     Knew = K0 + eta*V
-    c0 = SS.c + w*REG.rfun(SS.K)
-    SSnew = copy(SS)
-    SSnew.setK(Knew)
-    cnew = SSnew.c + w*REG.rfun(SSnew.K)
+    c0 = cost(K0)
+    cnew = cost(Knew)
     while cnew > c0 + alpha*eta*np.multiply(G,V).sum():
         eta *= beta
         Knew = K0 + eta*V
-        SSnew.setK(Knew)
-        cnew = SSnew.c + w*REG.rfun(SSnew.K)
-    return SSnew, eta
+        cnew = cost(Knew)
+    SS.setK(Knew)
+    return SS, eta
 
 
-def prox(SS,PGO):
+def prox(SS, PGO):
+    """Proximal operation"""
     Knew = np.copy(SS.K)
 
     # Soft thresholding operator (elementwise) on K
@@ -325,7 +348,119 @@ def prox(SS,PGO):
     return Knew
 
 
-def run_policy_gradient(SS,PGO,CSO=None):
+
+def estimate_gradient(K, SS, PGO, rng):
+    # Estimate gradient for zeroth-order optimization
+    # Follows "Algorithm 1" in the paper
+
+    # Rollout length
+    nt = PGO.nt
+
+    # Number of rollouts
+    nr = PGO.nr
+
+    # Exploration radius
+    ru = PGO.ru
+
+    # Draw random initial states
+    x = rng.multivariate_normal(np.zeros(SS.n), SS.S0, nr)
+
+    # Draw random gain deviations and scale to Frobenius norm ball
+    Uraw = rng.normal(size=[nr,SS.m,SS.n])
+    U = ru*Uraw/la.norm(Uraw,'fro',axis=(1,2))[:,None,None]
+
+    # Stack dynamics matrices into a 3D array
+    Kd = K + U
+    KdT = np.transpose(Kd, (0, 2, 1))
+    QKr = SS.Q + np.einsum('...ik,...kj', KdT, np.einsum('...ik,...kj', SS.R, Kd))
+
+    # Simulate all rollouts together
+    c = np.zeros(nr)
+    AKrNom = SS.A + np.einsum('...ik,...kj', SS.B, Kd)
+    for t in range(nt):
+        # Accumulate cost
+        c += np.einsum('...i,...i', x, np.einsum('...jk,...k', QKr, x))
+
+        # Calculate noisy closed-loop dynamics
+        AKr = np.copy(AKrNom)
+        for i in range(SS.p):
+            AKr += (SS.a[i]**0.5)*rng.randn(nr)[:,np.newaxis,np.newaxis]*np.repeat(SS.Aa[np.newaxis,:,:,i], nr, axis=0)
+        for j in range(SS.q):
+            AKr += np.einsum('...ik,...kj',(SS.b[j]**0.5)*rng.randn(nr)[:,np.newaxis,np.newaxis]*np.repeat(SS.Bb[np.newaxis,:,:,j], nr, axis=0),Kd)
+
+        # Transition the state
+        x = np.einsum('...jk,...k', AKr, x)
+
+    # Estimate gradient
+    Glqr = np.einsum('i,i...', c, U)
+    Glqr *= K.size/(nr*(ru**2))
+
+    # # TESTING
+    # G_est = Glqr
+    # G_act = SS.grad
+    #
+    # print('estimated gradient: ')
+    # print(G_est)
+    # print('actual gradient: ')
+    # print(G_act)
+    # print('error angle')
+    # print(np.arccos(np.sum((G_est*G_act))/(la.norm(G_est)*la.norm(G_act))))
+    # print('error scale')
+    # print((la.norm(G_est)/la.norm(G_act)))
+
+    return Glqr
+
+
+def estimate_cost(K, SS, PGO, rng):
+    # Estimate cost for zeroth-order optimization
+    # Use same parameters as for gradient estimation to ensure cost estimates are of similar quality
+
+    # Rollout length
+    nt = PGO.nt
+
+    # Number of rollouts
+    nr = PGO.nr
+
+    # Draw random initial states
+    x = rng.multivariate_normal(np.zeros(SS.n), SS.S0, nr)
+
+    # TESTING: TODO remove
+    # nr = 2*SS.n
+    # x = (SS.n**0.5)*np.vstack([np.eye(SS.n), -np.eye(SS.n)])
+    # nr = SS.n
+    # x = np.eye(SS.n)
+
+    # Simulate all rollouts together
+    c = np.zeros(nr)
+    AKnom = SS.A + np.dot(SS.B, K)
+    for t in range(nt):
+        # Accumulate cost
+        c += np.einsum('...i,...i', x, np.einsum('jk,...k', SS.QK, x))
+
+        # Calculate noisy closed-loop dynamics
+        AK = np.repeat(AKnom[None,:], nr, axis=0)
+        for i in range(SS.p):
+            AK += (SS.a[i]**0.5)*rng.randn(nr)[:,np.newaxis,np.newaxis]*np.repeat(SS.Aa[np.newaxis,:,:,i], nr, axis=0)
+        for j in range(SS.q):
+            AK += np.einsum('...ik,...kj',(SS.b[j]**0.5)*rng.randn(nr)[:,np.newaxis,np.newaxis]*np.repeat(SS.Bb[np.newaxis,:,:,j], nr, axis=0), K)
+
+        # Transition the state
+        x = np.einsum('...jk,...k', AK, x)
+
+    # Estimate cost
+    c_est = np.mean(c)
+
+    # TESTING: TODO remove
+    # if c_est > 1e6:
+    #     c_est = np.inf
+    #
+    # SS.setK(K)
+    # print('actual cost: %f  estimated cost: %f' % (SS.c, c_est))
+
+    return c_est
+
+
+def run_policy_gradient(SS, PGO):
     # run_policy_gradient  Run policy gradient descent on a system
     #
     # Inputs:
@@ -341,7 +476,7 @@ def run_policy_gradient(SS,PGO,CSO=None):
     # histlist, a list of data histories over optimization iterations
 
 
-    # TEMPORARY - MOVE INTO CLASS OPTIONS IF KEEPING AROUND
+    # TODO: Move into an options class/object or get rid of this
     Kmax = np.max(np.abs(vec(SS.K)))
     bin1 = 0.01*Kmax
 
@@ -392,64 +527,9 @@ def run_policy_gradient(SS,PGO,CSO=None):
             P = SS.P
             S = SS.S
         else:
-            if any([PGO.step_direction=='gradient',
-                    PGO.step_direction=='natural_gradient',
-                    PGO.step_direction=='gauss_newton',
-                    PGO.step_direction=='policy_iteration']):
-                # Estimate gradient using zeroth-order optimization
+            if PGO.step_direction in ['gradient', 'natural_gradient', 'gauss_newton', 'policy_iteration']:
+                Glqr = estimate_gradient(K, SS, PGO, rng)
 
-                # Rollout length
-                nt = 20
-
-                # Number of rollouts
-                nr = 100000
-
-                # Exploration radius
-                ru = 1e-1
-
-                # Draw random initial states
-                x = rng.multivariate_normal(np.zeros(SS.n),SS.S0,nr)
-
-                # Draw random gain deviations and scale to Frobenius norm ball
-                Uraw = rng.normal(size=[nr,SS.m,SS.n])
-                U = ru*Uraw/la.norm(Uraw,'fro',axis=(1,2))[:,None,None]
-
-                # Stack dynamics matrices into a 3D array
-                Kd = K + U
-
-                # Simulate all rollouts together
-                c = np.zeros(nr)
-                for t in range(nt):
-                    # Accumulate cost
-                    c += np.einsum('...i,...i',x,np.einsum('jk,...k', SS.QK, x))
-
-                    # Calculate noisy closed-loop dynamics
-                    AKr = SS.A + np.einsum('...ik,...kj',SS.B,Kd)
-                    for i in range(SS.p):
-                        AKr += (SS.a[i]**0.5)*rng.randn(nr)[:,np.newaxis,np.newaxis]*np.repeat(SS.Aa[np.newaxis,:,:,i], nr, axis=0)
-                    for j in range(SS.q):
-                        AKr += np.einsum('...ik,...kj',(SS.b[j]**0.5)*rng.randn(nr)[:,np.newaxis,np.newaxis]*np.repeat(SS.Bb[np.newaxis,:,:,j], nr, axis=0),Kd)
-
-                    # Transition the state
-                    x = np.einsum('...jk,...k', AKr, x)
-
-                # Estimate gradient
-                Glqr = np.einsum('i,i...', c, U)
-                Glqr *= K.size/(nr*(ru**2))
-
-
-                # TESTING
-                G_est = Glqr
-                G_act = SS.grad
-
-                print('estimated gradient: ')
-                print(G_est)
-                print('actual gradient: ')
-                print(G_act)
-                print('error angle')
-                print(np.arccos(np.sum((G_est*G_act))/(la.norm(G_est)*la.norm(G_act))))
-                print('error scale')
-                print((la.norm(G_est)/la.norm(G_act)))
 
 #INWORK
 #                if step_direction=='natural_gradient' or step_direction=='gauss_newton' or step_direction=='policy_iteration':
@@ -610,7 +690,7 @@ def run_policy_gradient(SS,PGO,CSO=None):
                     K = SS.K - eta*V
                     SS.setK(K)
                 elif PGO.stepsize_method=='backtrack':
-                    SS,eta = backtrack(SS,PGO.regweight,PGO.regularizer,G,-V,eta0=PGO.eta)
+                    SS, eta = backtrack(SS, PGO.regweight, PGO.regularizer, G, -V, eta0=PGO.eta, PGO=PGO, rng=rng)
                     K = SS.K
                 elif PGO.stepsize_method=='square_summable': # INWORK
                     eta = PGO.eta/(1.0+iterc)
@@ -631,7 +711,7 @@ def run_policy_gradient(SS,PGO,CSO=None):
                     K = SS.K - eta*V
                     SS.setK(K)
                 elif PGO.stepsize_method=='backtrack':
-                    SS,eta = backtrack(SS,PGO.regweight,PGO.regularizer,G,-V,eta0=PGO.eta)
+                    SS, eta = backtrack(SS, PGO.regweight, PGO.regularizer, G, -V, eta0=PGO.eta, PGO=PGO, rng=rng)
                     K = SS.K
                 elif PGO.stepsize_method=='square_summable': # INWORK
                     eta = PGO.eta/(1.0+iterc)
@@ -690,7 +770,7 @@ def run_policy_gradient(SS,PGO,CSO=None):
 
     t_end = time()
 
-    hist_list = [K_hist,grad_hist,c_hist,objfun_hist]
+    hist_list = [K_hist, grad_hist, c_hist, objfun_hist]
 
-    print('Policy gradient descent optimization completed after %d iterations, %.3f seconds' % (iterc,t_end-t_start))
-    return SS,hist_list
+    print('Policy gradient descent optimization completed after %d iterations, %.3f seconds' % (iterc+1,t_end-t_start))
+    return SS, hist_list

@@ -3,7 +3,7 @@ from matrixmath import randn
 
 from ltimultgen import gen_system_example_suspension
 from policygradient import PolicyGradientOptions,run_policy_gradient
-from ltimult import dlyap_obj,check_olmss
+from ltimult import dlyap_obj,check_olmss, LQRSys
 
 from matplotlib import pyplot as plt
 
@@ -15,7 +15,7 @@ from utility import create_directory
 from pickle_io import pickle_import,pickle_export
 
 
-def set_initial_gains(SS,K0_method):
+def set_initial_gains(SS, K0_method, K0=None):
     # Initial gains
     if K0_method=='random':
         K0 = randn(*SS.Kare.shape)
@@ -57,30 +57,23 @@ def set_initial_gains(SS,K0_method):
             print('Initializing with zero gain solution')
         else:
             print('System not open-loop mean-square stable, use a different initial gain setting')
+    elif K0_method == 'user':
+        K0 = K0
     SS.setK(K0)
     return K0
 
 
 def policy_gradient_setup(SS):
     # Gradient descent options
-
-    # Convergence threshold
-    epsilon = (1e+2)*SS.Kare.size # Scale by number of gain entries as rough heuristic
-
-    eta = 1e-8
-    max_iters = 100000
-    stepsize_method = 'constant'
-    step_direction = 'gradient'
-
-    PGO = PolicyGradientOptions(epsilon=epsilon,
-                                eta=eta,
-                                max_iters=max_iters,
+    PGO = PolicyGradientOptions(epsilon=(1e+1)*SS.Kare.size, # Scale by number of gain entries as rough heuristic
+                                eta=1e-2,
+                                max_iters=100,
                                 disp_stride=1,
                                 keep_hist=True,
                                 opt_method='gradient',
                                 keep_opt='last',
-                                step_direction=step_direction,
-                                stepsize_method=stepsize_method,
+                                step_direction='gradient',
+                                stepsize_method='backtrack',
                                 exact=True,
                                 regularizer=None,
                                 regweight=0,
@@ -209,23 +202,29 @@ def plot_results(SS1,SS2,chist_data,dirname_in):
     lw1 = 3
     lw2 = 3
     fs = 14
+    figsize = (5.5, 2)
 
-    fig1 = plt.figure(figsize=(4.5,2.5))
-    plotfun(c1hist_on_SS1,color=color1,linewidth=lw1,marker=marker1,markersize=ms,markevery=500)
-    plotfun(c2hist_on_SS1,color=color2,linewidth=lw2,marker=marker2,markersize=ms,markevery=500)
+    xlim_lwr = -0.5
+    xlim_upr = np.max([x.size for x in [c1hist_on_SS1, c1hist_on_SS2, c2hist_on_SS1, c2hist_on_SS2]])
+
+    fig1 = plt.figure(figsize=figsize)
+    plotfun(c1hist_on_SS1, color=color1, linewidth=lw1, linestyle='-')
+    plotfun(c1hist_on_SS2, color=color2, linewidth=lw1, linestyle='--')
     plt.xlabel('Iteration',fontsize=fs)
-    plt.ylabel('Normalized cost diff.',fontsize=fs)
-    plt.legend(['LQRm cost (with noise)','LQR cost (no noise)'])
+    plt.ylabel('Relative cost error',fontsize=fs)
+    plt.xlim(xlim_lwr, xlim_upr)
+    plt.legend(['$K_m$','$K_\ell$'], fontsize=fs)
     filename_out = 'plot_lqrm_cost_vs_iteration_suspension'
     path_out = os.path.join(img_dirname_out,filename_out)
     plt.savefig(path_out,dpi=300,bbox_inches='tight')
 
-    fig2 = plt.figure(figsize=(4.5,2.5))
-    plotfun(c1hist_on_SS2,color=color1,linewidth=lw1,marker=marker1,markersize=ms,markevery=1200)
-    plotfun(c2hist_on_SS2,color=color2,linewidth=lw2,marker=marker2,markersize=ms,markevery=1200)
+    fig2 = plt.figure(figsize=figsize)
+    plotfun(c2hist_on_SS1[0:7400], color=color1, linewidth=lw2, linestyle='-')
+    plotfun(c2hist_on_SS2[0:7400], color=color2, linewidth=lw2, linestyle='--')
     plt.xlabel('Iteration',fontsize=fs)
-    plt.ylabel('Normalized cost diff.',fontsize=fs)
-    plt.legend(['LQRm cost (with noise)','LQR cost (no noise)'],loc='right')
+    plt.ylabel('Relative cost error',fontsize=fs)
+    plt.xlim(xlim_lwr, xlim_upr)
+    plt.legend(['$K_m$','$K_\ell$'], loc='right', fontsize=fs)
     filename_out = 'plot_lqr_cost_vs_iteration_suspension'
     path_out = os.path.join(img_dirname_out,filename_out)
     plt.savefig(path_out,dpi=300,bbox_inches='tight')
@@ -238,13 +237,21 @@ def routine_gen():
     timestr = '1558459899p686552_example_suspension_model_known'
     folderstr = 'example_systems'
     SS1 = load_system(folderstr,timestr)
+    SS2 = copy(SS1)
+    SS2.set_a(np.zeros_like(SS2.a))
+    SS2.set_b(np.zeros_like(SS2.b))
 
     check_olmss(SS1)
 
     # Policy gradient setup
     t_start = time()
-    K0_method = 'are_perturbed'
-    K0 = set_initial_gains(SS1,K0_method=K0_method)
+    K0 = np.array([[ 1.188, -0.103,  1.271,  0.097]])
+    K0_method = 'user'
+    K0 = set_initial_gains(SS1, K0_method=K0_method, K0=K0)
+    # K0_method = 'are_perturbed'
+    # K0 = set_initial_gains(SS1, K0_method=K0_method)
+    SS1.setK(K0)
+    SS2.setK(K0)
     PGO = policy_gradient_setup(SS1)
     filename_out = 'policy_gradient_options.pickle'
     path_out = os.path.join(SS1.dirname,filename_out)
@@ -252,30 +259,21 @@ def routine_gen():
     t_end = time()
     print('Initialization completed after %.3f seconds' % (t_end-t_start))
 
-    SS1,histlist1 = run_policy_gradient(SS1,PGO)
+    # Find optimal control accounting for, and ignoring noise
+    SS1, histlist1 = run_policy_gradient(SS1, PGO)
+    PGO.epsilon = (1e-2)*SS1.Kare.size
+    SS2, histlist2 = run_policy_gradient(SS2, PGO)
 
-    # Find optimal control ignoring noise
-    SS2 = copy(SS1)
-    SS2.set_a(np.zeros_like(SS2.a))
-    SS2.set_b(np.zeros_like(SS2.b))
-    SS2.setK(K0)
-
-    PGO.eta = 1e-5
-    PGO.epsilon = (1e-1)*SS2.Kare.size
-    SS2,histlist2 = run_policy_gradient(SS2,PGO)
-
-    SS1.setK(SS2.Kare)
-    SS1.setK(SS2.K)
 
     dirname_in = os.path.join(folderstr,timestr)
 
     chist_data = calc_comparison_costs(SS1,SS2,histlist1,histlist2)
     dirname_out = copy(dirname_in)
     filename_out = 'chist_data.pickle'
-    path_out = os.path.join(dirname_out,filename_out)
-    pickle_export(dirname_out,path_out,chist_data)
+    path_out = os.path.join(dirname_out, filename_out)
+    pickle_export(dirname_out, path_out, chist_data)
 
-    plot_results(SS1,SS2,chist_data,dirname_in)
+    plot_results(SS1, SS2, chist_data,dirname_in)
 
 
 def routine_load():
@@ -288,13 +286,40 @@ def routine_load():
     SS2.set_a(np.zeros_like(SS2.a))
     SS2.set_b(np.zeros_like(SS2.b))
 
-    filename_in = os.path.join(dirname_in,'chist_data.pickle')
-    chist_data = pickle_import(filename_in)
-    plot_results(SS1,SS2,chist_data,dirname_in,)
+
+    # def print_latex_matrix(A):
+    #     n = A.shape[0]
+    #     m = A.shape[1]
+    #     print('\\begin{bmatrix}')
+    #     for i,row in enumerate(A):
+    #         line = '    '
+    #         for j,col in enumerate(row):
+    #             line += str(col)
+    #             if j < m-1:
+    #                 line += ' & '
+    #         if i < n-1:
+    #             line += ' \\\\'
+    #         print(line)
+    #     print('\\end{bmatrix}')
+    #     print('')
+    #
+    #
+    # print_latex_matrix(SS1.Aa[:, :, 0].round(3))
+    # print_latex_matrix(SS1.Aa[:, :, 1].round(3))
+    # print_latex_matrix(SS1.Aa[:, :, 2].round(3))
+    # print_latex_matrix(SS1.Aa[:, :, 3].round(3))
+    # print_latex_matrix(SS1.Bb.round(3))
+    # print(SS1.a.round(3))
+    # print(SS1.b.round(3))
+
+
+    # filename_in = os.path.join(dirname_in,'chist_data.pickle')
+    # chist_data = pickle_import(filename_in)
+    # plot_results(SS1,SS2,chist_data,dirname_in,)
 
 
 
 ###############################################################################
 if __name__ == "__main__":
-    routine_gen()
-#    routine_load()
+    # routine_gen()
+    routine_load()

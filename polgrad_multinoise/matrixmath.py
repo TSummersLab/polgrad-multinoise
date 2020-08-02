@@ -23,6 +23,17 @@ def vec(A):
 def sympart(A):
     return 0.5*(A+A.T)
 
+# Return the positive semidefinite part of a matrix
+def positive_semidefinite_part(X):
+    X = sympart(X)
+    Y = np.zeros_like(X)
+    eigvals, eigvecs = la.eig(X)
+    for i in range(X.shape[0]):
+        if eigvals[i] > 0:
+            Y += eigvals[i]*np.outer(eigvecs[:,i],eigvecs[:,i])
+    Y = sympart(Y)
+    return Y
+
 # Overload and extend the numpy kron function to take a single argument
 def kron(*args):
     if len(args)==1:
