@@ -3,8 +3,12 @@
 ## Policy gradient methods for linear systems with multiplicative noise
 
 The code in this repository implements the algorithms and ideas from our two papers:
-* [Learning robust control for LQR systems with multiplicative noise via policy gradient](https://arxiv.org/) TBD
-* [Sparse optimal control of networks with multiplicative noise via policy gradient](https://arxiv.org/) TBD
+* Learning optimal control for LQR systems with multiplicative noise via policy gradient
+  * [arXiv](https://arxiv.org/abs/1905.13547)
+  * [IEEE TAC](https://ieeexplore.ieee.org/document/9254115)
+* Sparse optimal control of networks with multiplicative noise via policy gradient
+  * [arXiv](https://arxiv.org/abs/1905.13548)
+  * [IFAC NECSYS](https://www.sciencedirect.com/science/article/pii/S2405896319320294)
 
 
 ## Dependencies
@@ -27,7 +31,7 @@ Use this file as a "Hello world" for this repository. The program should perform
 Iteration | Stop quant / threshold |  Curr obj |  Best obj | Norm of gain delta | Stepsize  | Sparsity
      1000 |  2.405e+00 / 6.000e-02 | 6.004e+00 | 6.004e+00 |          1.609e-06 | 1.000e-03 |  33.33%
 Max iterations exceeded, stopping optimization
-Policy gradient descent optimization completed after 999 iterations, 1.736 seconds
+Policy gradient descent optimization completed after 1000 iterations, 1.736 seconds
 Optimized sparse gains
 [[-0.08948389 -0.22821676 -0.1576331 ]
  [ 0.23967029  0.          0.        ]]
