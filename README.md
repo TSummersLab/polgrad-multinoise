@@ -3,10 +3,10 @@
 ## Policy gradient methods for linear systems with multiplicative noise
 
 The code in this repository implements the algorithms and ideas from our two papers:
-* Learning optimal control for LQR systems with multiplicative noise via policy gradient
+* "Learning optimal control for LQR systems with multiplicative noise via policy gradient"
   * [arXiv](https://arxiv.org/abs/1905.13547)
   * [IEEE TAC](https://ieeexplore.ieee.org/document/9254115)
-* Sparse optimal control of networks with multiplicative noise via policy gradient
+* "Sparse optimal control of networks with multiplicative noise via policy gradient"
   * [arXiv](https://arxiv.org/abs/1905.13548)
   * [IFAC NECSYS](https://www.sciencedirect.com/science/article/pii/S2405896319320294)
 
